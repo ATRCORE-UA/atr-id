@@ -1,6 +1,7 @@
 # ATR-ID PHP SDK
 
 Universal PHP OAuth2 client for ATR-ID.
+ATR-ID is another ATRCORE service: `https://atrcore.pp.ua`
 
 ## Repository Contents
 
