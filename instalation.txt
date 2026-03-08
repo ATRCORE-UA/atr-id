@@ -1,0 +1,255 @@
+ATR-ID PHP SDK - INSTALLATION GUIDE
+===================================
+
+File: instalation.txt
+Version: 1.0
+Audience: PHP developers (plain PHP / custom CMS / framework)
+
+------------------------------------------------------------------
+1. WHAT IS THIS
+------------------------------------------------------------------
+This SDK provides a reusable OAuth2 client for ATR-ID that works without
+WordPress. It helps you:
+- Redirect user to ATR-ID login page
+- Handle callback and validate state
+- Exchange authorization code for access token
+- Resolve user profile (email, name, sub)
+
+SDK root folder:
+- atr-id-php-sdk/
+
+Main classes:
+- AtrId\Auth\Config
+- AtrId\Auth\OAuthClient
+- AtrId\Auth\CurlHttpClient
+
+------------------------------------------------------------------
+2. REQUIREMENTS
+------------------------------------------------------------------
+- PHP 7.4+
+- cURL extension enabled
+- Composer (recommended)
+- Valid ATR-ID OAuth app credentials:
+  - client_id
+  - client_secret
+  - redirect_uri
+
+Server-side requirement in ATR-ID app:
+- redirect_uri must match EXACTLY (protocol, domain, path, query)
+
+------------------------------------------------------------------
+3. INSTALLATION (COMPOSER)
+------------------------------------------------------------------
+If the package is published:
+
+  composer require atrcore/atr-id-php-sdk
+
+If you use this local folder directly:
+
+  cd atr-id-php-sdk
+  composer dump-autoload
+
+Then include autoload in your app:
+
+  require __DIR__ . '/vendor/autoload.php';
+
+------------------------------------------------------------------
+3.1 INSTALLATION (WITHOUT COMPOSER)
+------------------------------------------------------------------
+You can use SDK without Composer.
+
+1) Copy folder `atr-id-php-sdk/` into your project
+2) Include SDK bootstrap file:
+
+  require __DIR__ . '/atr-id-php-sdk/bootstrap.php';
+
+If your include path differs, adjust the path accordingly.
+
+After that, classes are available the same way:
+
+  use AtrId\Auth\Config;
+  use AtrId\Auth\OAuthClient;
+
+------------------------------------------------------------------
+4. BASIC CONFIGURATION
+------------------------------------------------------------------
+Create config and OAuth client:
+
+  use AtrId\Auth\Config;
+  use AtrId\Auth\OAuthClient;
+
+  // If you do not use Composer:
+  // require __DIR__ . '/atr-id-php-sdk/bootstrap.php';
+
+  $config = new Config([
+      'client_id' => 'YOUR_CLIENT_ID',
+      'client_secret' => 'YOUR_CLIENT_SECRET',
+      'redirect_uri' => 'https://example.com/callback.php',
+
+      // Optional overrides:
+      // 'authorize_url' => 'https://id.atrcore.live/authorize.php',
+      // 'token_url' => 'https://id.atrcore.live/api_oauth_token.php',
+      // 'userinfo_url' => 'https://id.atrcore.live/api_oauth_userinfo.php',
+      // 'scope' => 'openid email profile',
+      // 'timeout' => 20,
+  ]);
+
+  $oauth = new OAuthClient($config);
+
+------------------------------------------------------------------
+5. LOGIN FLOW (STEP-BY-STEP)
+------------------------------------------------------------------
+Step A: Start login
+- Generate state
+- Save state in session
+- Redirect user to ATR-ID authorize URL
+
+Example:
+
+  session_start();
+  $state = bin2hex(random_bytes(16));
+  $_SESSION['atr_state'] = $state;
+
+  $authUrl = $oauth->buildAuthorizeUrl($state);
+  header('Location: ' . $authUrl);
+  exit;
+
+Step B: Handle callback
+- Parse callback params
+- Check error
+- Validate state
+- Exchange code for token
+- Resolve profile
+
+Example:
+
+  session_start();
+
+  $callback = $oauth->parseCallback($_GET);
+
+  if ($callback['error'] !== '') {
+      exit('OAuth error: ' . $callback['error']);
+  }
+
+  if ($callback['code'] === '' || $callback['state'] === '') {
+      exit('Invalid callback payload');
+  }
+
+  if (!hash_equals((string)($_SESSION['atr_state'] ?? ''), $callback['state'])) {
+      exit('Invalid state');
+  }
+  unset($_SESSION['atr_state']);
+
+  $token = $oauth->exchangeCodeForToken($callback['code']);
+  $profile = $oauth->resolveUserProfile($token);
+
+  // profile should include at least email
+  $email = (string)($profile['email'] ?? '');
+
+------------------------------------------------------------------
+6. CALLBACK COMPATIBILITY NOTE
+------------------------------------------------------------------
+SDK supports normal callback:
+  /callback.php?code=...&state=...
+
+And provider compatibility fallback:
+  /callback.php?atr_id_callback=1?code=...&state=...
+
+This is handled automatically by:
+  $oauth->parseCallback($_GET)
+
+------------------------------------------------------------------
+7. USER LOGIN / REGISTRATION IN YOUR APP
+------------------------------------------------------------------
+After you receive profile data:
+- Find local user by sub or email
+- If user exists: log in
+- If user not found: create account (optional)
+- Save relation between local user and ATR-ID subject (sub)
+
+Recommended identity strategy:
+1) Primary: sub
+2) Secondary fallback: email
+
+------------------------------------------------------------------
+8. SECURITY RECOMMENDATIONS
+------------------------------------------------------------------
+- ALWAYS validate state (CSRF protection)
+- Use HTTPS only
+- Keep client_secret only on backend
+- Do not expose tokens in frontend logs
+- Use secure session cookies
+- Add token expiration handling in your app
+
+------------------------------------------------------------------
+9. COMMON ERRORS AND FIXES
+------------------------------------------------------------------
+Error: "client_id, client_secret and redirect_uri are required"
+Fix:
+- Missing required Config values
+
+Error: "Token endpoint did not return access_token"
+Fix:
+- Check client credentials
+- Check redirect_uri exact match in ATR-ID app
+- Check token endpoint URL
+
+Error: "Cannot resolve profile: userinfo did not return email"
+Fix:
+- Ensure userinfo endpoint is correct and returns email
+- Ensure token belongs to valid ATR-ID user
+
+Error: "Invalid state"
+Fix:
+- Session lost/expired or state mismatch
+- Ensure session_start() is called in both login and callback handlers
+
+------------------------------------------------------------------
+10. QUICK TEST WITH INCLUDED EXAMPLE
+------------------------------------------------------------------
+Example file:
+- examples/basic_flow.php
+
+Steps:
+1) Open file and set:
+   - client_id
+   - client_secret
+   - redirect_uri
+2) Ensure redirect_uri in ATR-ID dashboard equals this file URL exactly
+3) Open example in browser
+4) Click "Login with ATR-ID"
+5) On success you will see token + profile JSON
+
+------------------------------------------------------------------
+11. FRAMEWORK INTEGRATION (SHORT NOTES)
+------------------------------------------------------------------
+Laravel/Symfony/any framework:
+- Put Config values in env vars
+- Create service wrapper around OAuthClient
+- Route A: /auth/atrid/login
+- Route B: /auth/atrid/callback
+- Persist user mapping (sub -> local user id)
+
+------------------------------------------------------------------
+12. TROUBLESHOOTING CHECKLIST
+------------------------------------------------------------------
+- PHP cURL enabled?
+- Session started?
+- redirect_uri exact match?
+- authorize/token/userinfo URLs correct?
+- HTTPS and domain valid?
+- Token response has access_token?
+- Profile response has email?
+
+------------------------------------------------------------------
+13. SUPPORT DATA TO COLLECT WHEN DEBUGGING
+------------------------------------------------------------------
+When debugging, capture:
+- Full callback URL (without exposing sensitive data publicly)
+- HTTP status and body from token endpoint
+- HTTP status and body from userinfo endpoint
+- Current redirect_uri in your code and in ATR-ID app settings
+
+------------------------------------------------------------------
+END
+------------------------------------------------------------------

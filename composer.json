@@ -1,0 +1,14 @@
+{
+  "name": "atrcore/atr-id-php-sdk",
+  "description": "ATR-ID OAuth2 client SDK for plain PHP applications",
+  "type": "library",
+  "license": "MIT",
+  "require": {
+    "php": ">=7.4"
+  },
+  "autoload": {
+    "psr-4": {
+      "AtrId\\Auth\\": "src/AtrId/Auth/"
+    }
+  }
+}
