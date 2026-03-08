@@ -9,7 +9,7 @@ Send a private report with:
 - Reproduction steps
 - Suggested mitigation (optional)
 
-Contact: security@atrcore.live
+Contact: mail@atrcore.pp.ua
 
 ## Scope
 
