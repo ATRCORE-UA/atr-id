@@ -121,3 +121,4 @@ echo 'Login success for: ' . htmlspecialchars((string)$profile['email'], ENT_QUO
   - `/?atr_id_callback=1?code=...&state=...`
 - Sends `redirect_uri` during token exchange for provider compatibility.
 - Works without WordPress.
+- Where get Client Secret and Client ID - ```https://id.atrcore.live/``` - just register here, and have fun.
